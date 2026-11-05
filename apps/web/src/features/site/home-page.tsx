@@ -1,7 +1,7 @@
 import { Aperture, ArrowRight, CalendarDays, PackageCheck, Timer } from 'lucide-react';
 import { Link } from 'react-router';
-import studioCamera from './assets/studio-camera.jpg';
-import { CatalogListings } from './catalog-page';
+import studioCamera from '../../assets/studio-camera.jpg';
+import { CatalogListings } from '../catalog/catalog-listings';
 
 export function HomePage() {
   return (

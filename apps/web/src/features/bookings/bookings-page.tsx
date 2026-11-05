@@ -2,11 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowUpRight, CalendarDays, CalendarRange, Clock3 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { ApiError, api, request } from './api';
+import { ApiError, api, request } from '../../shared/api';
+import { PageHeading } from '../../shared/components/page-heading';
+import { CustomerArea } from '../auth/customer-area';
 import { BookingStatusBadge } from './booking-status';
 import { type Booking, bookingKeys } from './bookings';
-import { CustomerArea } from './customer-area';
-import { PageHeading } from './page-heading';
 
 function BookingSummary({ booking }: { booking: Booking }) {
   return (

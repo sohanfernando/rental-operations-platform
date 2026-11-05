@@ -2,11 +2,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, CalendarDays, CircleCheck, Clock3, Search } from 'lucide-react';
 import { type FormEvent, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { ApiError, api, request } from './api';
+import { ApiError, api, request } from '../../shared/api';
+import { useSession } from '../auth/session';
+import { useCatalog } from '../catalog/catalog-query';
+import { EquipmentGallery } from '../catalog/equipment-art';
 import { type Booking, bookingKeys } from './bookings';
-import { useCatalog } from './catalog-page';
-import { EquipmentGallery } from './equipment-art';
-import { useSession } from './session';
 
 interface HoldInput {
   equipmentTypeId: number;

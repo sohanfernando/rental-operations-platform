@@ -2,11 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Boxes, ChevronDown, ImagePlus, Plus, Trash2 } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { Link } from 'react-router';
-import { api, request } from './api';
-import { catalogKey, type Equipment } from './catalog-page';
-import { imageUrl } from './equipment-art';
-import { PageHeading } from './page-heading';
-import { useSession } from './session';
+import { api, request } from '../../shared/api';
+import { PageHeading } from '../../shared/components/page-heading';
+import { useSession } from '../auth/session';
+import { catalogKey, type Equipment } from '../catalog/catalog-query';
+import { imageUrl } from '../catalog/equipment-art';
 
 interface Unit {
   id: number;

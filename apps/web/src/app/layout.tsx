@@ -2,9 +2,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Aperture, ArrowUpRight, LogOut } from 'lucide-react';
 import { useRef } from 'react';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
-import { api, request } from './api';
-import { useEntrance } from './motion';
-import { sessionKey, useSession } from './session';
+import { sessionKey, useSession } from '../features/auth/session';
+import { api, request } from '../shared/api';
+import { useEntrance } from '../shared/motion/use-entrance';
 
 export function Layout() {
   const session = useSession();

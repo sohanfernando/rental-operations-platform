@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ApiError, api } from './api';
+import { ApiError, api } from '../../shared/api';
 
 export interface User {
   id: number;

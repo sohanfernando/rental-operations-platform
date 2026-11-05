@@ -52,6 +52,8 @@ flowchart LR
 
 The NestJS API has separate auth, catalog, inventory, booking, staff, and notification modules. Controllers validate input and delegate to services. React and the API share an origin locally through the Vite proxy. A hosted setup can use an HTTPS reverse proxy to serve the built web app and route `/api/v1` to NestJS.
 
+The frontend entry point is `apps/web/src/main.tsx`. The `app/` folder holds routing, the site layout, and global styles. The `features/` folder keeps screens and their related data logic together, including customer and staff booking screens in one booking feature. The `shared/` folder holds the API client and reusable UI and animation code. Catalog consumers import its query or listing component directly.
+
 ```mermaid
 erDiagram
     USER ||--o{ SESSION : owns

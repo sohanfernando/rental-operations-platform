@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowUpRight, Bell } from 'lucide-react';
 import { Link } from 'react-router';
-import { api } from './api';
-import { bookingKeys } from './bookings';
-import { CustomerArea } from './customer-area';
-import { PageHeading } from './page-heading';
+import { api } from '../../shared/api';
+import { PageHeading } from '../../shared/components/page-heading';
+import { CustomerArea } from '../auth/customer-area';
+import { bookingKeys } from '../bookings/bookings';
 
 interface Notification {
   eventId: number;

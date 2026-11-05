@@ -2,8 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Aperture, ArrowRight, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { api, request } from './api';
-import studioCamera from './assets/studio-camera.jpg';
+import studioCamera from '../../assets/studio-camera.jpg';
+import { api, request } from '../../shared/api';
 import { sessionKey, type User, useSession } from './session';
 
 export function AuthPage({ register = false }: { register?: boolean }) {

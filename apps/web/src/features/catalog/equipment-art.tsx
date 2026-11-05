@@ -1,6 +1,6 @@
 import { Camera, Lightbulb, Package, Triangle } from 'lucide-react';
 import { useState } from 'react';
-import { type Equipment } from './catalog-page';
+import { type Equipment } from './catalog-query';
 
 export function imageUrl(id: number) {
   return `/api/v1/catalog/images/${id}`;

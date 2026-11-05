@@ -2,11 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ArrowLeft, ArrowUpRight, CalendarCheck, CalendarDays, ClipboardList, PackageOpen } from 'lucide-react';
 import { useId } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
-import { ApiError, api, request } from './api';
+import { ApiError, api, request } from '../../shared/api';
+import { PageHeading } from '../../shared/components/page-heading';
+import { useSession } from '../auth/session';
 import { BookingStatusBadge } from './booking-status';
 import { type BookingStatus, bookingLabels } from './bookings';
-import { PageHeading } from './page-heading';
-import { useSession } from './session';
 
 interface StaffBooking {
   id: number;
