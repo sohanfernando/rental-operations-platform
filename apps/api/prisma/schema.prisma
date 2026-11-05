@@ -1,0 +1,170 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum Role {
+  CUSTOMER
+  STAFF
+}
+
+enum UnitStatus {
+  IN_SERVICE
+  OUT_OF_SERVICE
+}
+
+enum BookingStatus {
+  HELD
+  CONFIRMED
+  PICKED_UP
+  RETURNED
+  CANCELLED
+  EXPIRED
+}
+
+enum BookingOperation {
+  CREATE_HOLD
+  CONFIRM
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique @db.VarChar(254)
+  passwordHash String    @db.VarChar(255)
+  role         Role      @default(CUSTOMER)
+  createdAt    DateTime  @default(now())
+  sessions     Session[]
+  bookings     Booking[]
+  bookingEvents BookingEvent[]
+  bookingRequests BookingRequest[]
+
+  @@map("users")
+}
+
+model Session {
+  tokenHash String   @id @db.Char(64)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model EquipmentType {
+  id          Int             @id @default(autoincrement())
+  name        String          @unique @db.VarChar(120)
+  description String          @db.VarChar(1000)
+  units       EquipmentUnit[]
+  images      EquipmentImage[]
+  bookings    Booking[]
+
+  @@map("equipment_types")
+}
+
+model EquipmentImage {
+  id              Int           @id @default(autoincrement())
+  equipmentTypeId Int
+  equipmentType   EquipmentType @relation(fields: [equipmentTypeId], references: [id], onDelete: Cascade)
+  contentType     String        @db.VarChar(16)
+  data            Bytes         @db.MediumBlob
+
+  @@index([equipmentTypeId, id])
+  @@map("equipment_images")
+}
+
+model ContactMessage {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  email     String   @db.VarChar(254)
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@map("contact_messages")
+}
+
+model EquipmentUnit {
+  id              Int           @id @default(autoincrement())
+  equipmentTypeId Int
+  equipmentType   EquipmentType @relation(fields: [equipmentTypeId], references: [id], onDelete: Restrict)
+  assetTag        String        @unique @db.VarChar(64)
+  status          UnitStatus    @default(IN_SERVICE)
+  allocations     BookingAllocation[]
+
+  @@index([equipmentTypeId, status, id])
+  @@map("equipment_units")
+}
+
+model Booking {
+  id              Int                 @id @default(autoincrement())
+  customerId      Int
+  customer        User                @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  equipmentTypeId Int
+  equipmentType   EquipmentType       @relation(fields: [equipmentTypeId], references: [id], onDelete: Restrict)
+  startDate       DateTime            @db.Date
+  endDate         DateTime            @db.Date
+  status          BookingStatus
+  holdExpiresAt   DateTime
+  createdAt       DateTime
+  allocations     BookingAllocation[]
+  events          BookingEvent[]
+
+  @@index([equipmentTypeId, status, startDate, endDate])
+  @@index([customerId, id])
+  @@index([status, holdExpiresAt])
+  @@index([status, startDate, id])
+  @@index([status, endDate, id])
+  @@map("bookings")
+}
+
+model BookingAllocation {
+  bookingId Int
+  booking   Booking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  unitId    Int
+  unit      EquipmentUnit @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  @@id([bookingId, unitId])
+  @@index([unitId, bookingId])
+  @@map("booking_allocations")
+}
+
+model BookingEvent {
+  id         Int            @id @default(autoincrement())
+  bookingId  Int
+  booking    Booking        @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  actorId    Int?
+  actor      User?          @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  fromStatus BookingStatus?
+  toStatus   BookingStatus
+  occurredAt DateTime
+  notification Notification?
+
+  @@index([bookingId, id])
+  @@map("booking_events")
+}
+
+model Notification {
+  eventId Int          @id
+  event   BookingEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@map("notifications")
+}
+
+model BookingRequest {
+  userId      Int
+  user        User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  operation   BookingOperation
+  keyHash     String           @db.Char(64)
+  fingerprint String           @db.Char(64)
+  outcome     Json
+
+  @@id([userId, operation, keyHash])
+  @@map("booking_requests")
+}
