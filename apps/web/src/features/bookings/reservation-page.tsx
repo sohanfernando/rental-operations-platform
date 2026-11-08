@@ -1,95 +1,137 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, CalendarDays, CircleCheck, Clock3, Search } from 'lucide-react';
 import { type FormEvent, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ApiError, api, request } from '../../shared/api';
+import { formatLkr } from '../../shared/money';
+import { businessDay, readRentalDates, type RentalDates } from '../../shared/rental-dates';
 import { useSession } from '../auth/session';
-import { useCatalog } from '../catalog/catalog-query';
+import { catalogKey, equipmentCategories, useCatalog } from '../catalog/catalog-query';
 import { EquipmentGallery } from '../catalog/equipment-art';
 import { type Booking, bookingKeys } from './bookings';
 
-interface HoldInput {
+interface HoldInput extends RentalDates {
   equipmentTypeId: number;
-  startDate: string;
-  endDate: string;
   quantity: number;
 }
 
-function businessDay() {
-  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Colombo' }).format(new Date());
+interface Availability {
+  availableUnits: number;
+  rentalDays: number;
+  dailyRateMinor: number | null;
+  totalMinor: number | null;
 }
 
-function readPendingKey(name: string) {
+interface PendingHold {
+  key: string;
+  expectedTotalMinor?: number | null;
+}
+
+function holdStorageKey(userId: number | undefined, input: HoldInput) {
+  return `rental:hold:${JSON.stringify({ userId, ...input })}`;
+}
+
+function readPendingHold(name: string): PendingHold | null {
   try {
-    return sessionStorage.getItem(name);
+    const stored = sessionStorage.getItem(name);
+    if (!stored) return null;
+    // Holds started before pricing saved only the key. Retry their original payload.
+    return stored.startsWith('{') ? JSON.parse(stored) as PendingHold : { key: stored };
   } catch {
     return null;
   }
 }
 
-function writePendingKey(name: string, key: string | null) {
+function writePendingHold(name: string, pending: PendingHold | null) {
   try {
-    if (key) sessionStorage.setItem(name, key);
+    if (pending) sessionStorage.setItem(name, JSON.stringify(pending));
     else sessionStorage.removeItem(name);
   } catch {
     // The current form can still retry if browser storage is unavailable.
   }
 }
 
-function ReservationForm({ equipmentTypeId }: { equipmentTypeId: number }) {
+function ReservationForm({ equipmentTypeId, initialDates }: { equipmentTypeId: number; initialDates: RentalDates }) {
   const session = useSession();
   const customer = session.data?.role === 'CUSTOMER' ? session.data : null;
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(initialDates.startDate);
+  const [endDate, setEndDate] = useState(initialDates.endDate);
+  const [checkedDates, setCheckedDates] = useState(
+    initialDates.startDate && initialDates.endDate ? initialDates : null,
+  );
   const [quantity, setQuantity] = useState(1);
-  const pendingKeys = useRef(new Map<string, string>());
+  const pendingHolds = useRef(new Map<string, PendingHold>());
+  const { search } = useLocation();
   const navigate = useNavigate();
   const cache = useQueryClient();
 
-  const preview = useMutation({
-    mutationFn: ({ startDate, endDate }: Pick<HoldInput, 'startDate' | 'endDate'>) => {
-      const params = new URLSearchParams({ equipmentTypeId: String(equipmentTypeId), startDate, endDate });
-      return api<{ availableUnits: number }>(`/catalog/availability?${params}`);
+  const validQuantity = Number.isInteger(quantity) && quantity >= 1 && quantity <= 10;
+  const canPreview = validQuantity && checkedDates?.startDate === startDate && checkedDates.endDate === endDate;
+  const previewKey = ['rental-preview', equipmentTypeId] as const;
+  const preview = useQuery({
+    queryKey: [...previewKey, checkedDates, quantity],
+    enabled: canPreview,
+    retry: false,
+    refetchOnWindowFocus: false,
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams({ equipmentTypeId: String(equipmentTypeId), startDate, endDate, quantity: String(quantity) });
+      return api<Availability>(`/catalog/availability?${params}`, { signal });
     },
   });
   const hold = useMutation({
-    mutationFn: async (body: HoldInput) => {
-      const name = `rental:hold:${JSON.stringify({ userId: customer?.id, ...body })}`;
-      const key = pendingKeys.current.get(name) ?? readPendingKey(name) ?? crypto.randomUUID();
-      pendingKeys.current.set(name, key);
-      writePendingKey(name, key);
+    mutationFn: async ({ input: body, expectedTotalMinor }: { input: HoldInput; expectedTotalMinor: number | null }) => {
+      const name = holdStorageKey(customer?.id, body);
+      const pending = pendingHolds.current.get(name) ?? readPendingHold(name) ?? { key: crypto.randomUUID(), expectedTotalMinor };
+      pendingHolds.current.set(name, pending);
+      writePendingHold(name, pending);
       try {
         const booking = await api<Booking>('/bookings/holds', {
-          ...request('POST', body),
-          headers: { 'Idempotency-Key': key },
+          ...request('POST', { ...body, expectedTotalMinor: pending.expectedTotalMinor }),
+          headers: { 'Idempotency-Key': pending.key },
         });
-        pendingKeys.current.delete(name);
-        writePendingKey(name, null);
+        pendingHolds.current.delete(name);
+        writePendingHold(name, null);
         return booking;
       } catch (error) {
         if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
-          pendingKeys.current.delete(name);
-          writePendingKey(name, null);
+          pendingHolds.current.delete(name);
+          writePendingHold(name, null);
         }
         throw error;
       }
     },
     onSuccess: (booking) => {
       if (customer) void cache.invalidateQueries({ queryKey: bookingKeys.list(customer.id) });
+      void cache.invalidateQueries({ queryKey: catalogKey });
+      void cache.invalidateQueries({ queryKey: previewKey });
       navigate(`/bookings/${booking.id}`);
     },
     onError: (error) => {
-      if (error instanceof ApiError && error.status === 409) preview.reset();
+      if (error instanceof ApiError && error.status === 409) {
+        setCheckedDates(null);
+        void cache.invalidateQueries({ queryKey: previewKey, refetchType: 'none' });
+        void cache.invalidateQueries({ queryKey: catalogKey });
+      }
     },
   });
 
-  const previewMatches = preview.variables?.startDate === startDate && preview.variables?.endDate === endDate;
-  const available = previewMatches ? preview.data?.availableUnits : undefined;
+  const quote = canPreview ? preview.data : undefined;
+  const available = quote?.availableUnits;
+  const input = { equipmentTypeId, startDate, endDate, quantity };
+  const pendingName = holdStorageKey(customer?.id, input);
+  const canRetry = customer && quote && readPendingHold(pendingName) !== null;
+  const signInParams = new URLSearchParams(search);
+  for (const field of ['startDate', 'endDate'] as const) {
+    if (input[field]) signInParams.set(field, input[field]);
+    else signInParams.delete(field);
+  }
+  const signInSearch = signInParams.toString();
 
   function check(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     hold.reset();
-    preview.mutate({ startDate, endDate });
+    if (canPreview) void preview.refetch();
+    else setCheckedDates({ startDate, endDate });
   }
 
   return (
@@ -113,12 +155,12 @@ function ReservationForm({ equipmentTypeId }: { equipmentTypeId: number }) {
               onChange={(event) => setQuantity(event.target.valueAsNumber)} required />
           </label>
         </div>
-        <button className="full-button" disabled={preview.isPending || hold.isPending}>
+        <button className="full-button" disabled={preview.isFetching || hold.isPending}>
           <Search size={17} aria-hidden="true" />
-          {preview.isPending ? 'Checking…' : 'Check availability'}
+          {preview.isFetching ? 'Checking…' : 'Check availability'}
         </button>
       </form>
-      {previewMatches && preview.isError && <p className="notice error" role="alert">{preview.error.message}</p>}
+      {canPreview && preview.isError && <p className="notice error" role="alert">{preview.error.message}</p>}
       {available !== undefined && (
         <p className={`notice ${available > 0 ? 'success' : 'neutral'}`} role="status">
           {available > 0 && <CircleCheck size={17} aria-hidden="true" />}
@@ -126,23 +168,29 @@ function ReservationForm({ equipmentTypeId }: { equipmentTypeId: number }) {
           {available > 0 && quantity > available && ' Choose fewer units or different dates.'}
         </p>
       )}
+      {quote && !preview.isError && (
+        <div className="rental-quote">
+          <span>{quote.rentalDays} {quote.rentalDays === 1 ? 'day' : 'days'} × {quantity} {quantity === 1 ? 'unit' : 'units'}</span>
+          <strong>{quote.totalMinor === null ? 'Rate not set' : `Estimated total ${formatLkr(quote.totalMinor)}`}</strong>
+        </div>
+      )}
       {hold.isError && <p className="notice error" role="alert">{hold.error.message}</p>}
       {hold.isError && !(hold.error instanceof ApiError) && (
         <p>Retry the hold or check <Link to="/bookings">My bookings</Link> if the request timed out.</p>
       )}
-      {customer && available !== undefined && (
+      {customer && quote && !preview.isError && (
         <button
           className="full-button button-lime"
           type="button"
-          disabled={hold.isPending || !Number.isInteger(quantity) || quantity < 1 || quantity > 10 || quantity > available}
-          onClick={() => hold.mutate({ equipmentTypeId, startDate, endDate, quantity })}
+          disabled={hold.isPending || preview.isFetching || (!canRetry && quantity > quote.availableUnits)}
+          onClick={() => hold.mutate({ input, expectedTotalMinor: quote.totalMinor })}
         >
-          {hold.isPending ? 'Placing hold…' : 'Place hold'}
+          {hold.isPending ? 'Placing hold…' : canRetry ? 'Retry hold' : 'Place hold'}
           <ArrowRight size={17} aria-hidden="true" />
         </button>
       )}
       {session.data === null && (
-        <p><Link to="/login" state={{ returnTo: `/equipment/${equipmentTypeId}` }}>Sign in</Link> to place a hold.</p>
+        <p><Link to="/login" state={{ returnTo: `/equipment/${equipmentTypeId}${signInSearch ? `?${signInSearch}` : ''}` }}>Sign in</Link> to place a hold.</p>
       )}
       {session.data?.role === 'STAFF' && <p>A customer account can place holds.</p>}
       <p className="reservation-note"><Clock3 size={16} aria-hidden="true" /> Dates use Asia/Colombo. The end date is excluded.</p>
@@ -152,12 +200,14 @@ function ReservationForm({ equipmentTypeId }: { equipmentTypeId: number }) {
 
 export function ReservationPage() {
   const { id } = useParams();
+  const [filters] = useSearchParams();
+  const initialDates = readRentalDates(filters);
   const catalog = useCatalog();
   const equipment = catalog.data?.find((item) => String(item.id) === id);
 
   return (
     <main>
-      <Link className="back-link" to="/catalog"><ArrowLeft size={17} aria-hidden="true" /> Back to catalog</Link>
+      <Link className="back-link" to={{ pathname: '/catalog', search: filters.toString() }}><ArrowLeft size={17} aria-hidden="true" /> Back to catalog</Link>
       {catalog.isPending && <p role="status">Loading equipment…</p>}
       {catalog.isError && (
         <div className="panel">
@@ -171,12 +221,14 @@ export function ReservationPage() {
           <section className="panel equipment-feature" data-enter>
             <EquipmentGallery key={equipment.id} equipment={equipment} />
             <div>
-              <p className="eyebrow">Rental equipment</p>
+              <p className="eyebrow">{equipmentCategories[equipment.category]}</p>
               <h1>{equipment.name}</h1>
+              <p>{equipment.dailyRateMinor === null ? 'Rate not set' : `${formatLkr(equipment.dailyRateMinor)} per unit / day`}</p>
               <p className="muted">{equipment.description}</p>
             </div>
           </section>
-          <ReservationForm key={equipment.id} equipmentTypeId={equipment.id} />
+          <ReservationForm key={`${equipment.id}:${initialDates.startDate}:${initialDates.endDate}`}
+            equipmentTypeId={equipment.id} initialDates={initialDates} />
         </div>
       )}
     </main>

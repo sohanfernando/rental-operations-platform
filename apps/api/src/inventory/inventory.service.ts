@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { activeBooking } from '../bookings/booking-rules';
-import { equipmentFields } from '../catalog/catalog.module';
+import { equipmentFields } from '../catalog/catalog.service';
 import { databaseNow } from '../database/database-clock';
 import { withEquipmentLock } from '../database/inventory-lock';
 import { Prisma, PrismaClient } from '../generated/prisma/client';

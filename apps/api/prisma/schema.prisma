@@ -18,6 +18,16 @@ enum UnitStatus {
   OUT_OF_SERVICE
 }
 
+enum EquipmentCategory {
+  CAMERAS
+  LIGHTING
+  SUPPORT
+  AUDIO
+  DRONES
+  ACCESSORIES
+  OTHER
+}
+
 enum BookingStatus {
   HELD
   CONFIRMED
@@ -62,6 +72,8 @@ model EquipmentType {
   id          Int             @id @default(autoincrement())
   name        String          @unique @db.VarChar(120)
   description String          @db.VarChar(1000)
+  category    EquipmentCategory @default(OTHER)
+  dailyRateMinor Int?
   units       EquipmentUnit[]
   images      EquipmentImage[]
   bookings    Booking[]
@@ -113,6 +125,8 @@ model Booking {
   status          BookingStatus
   holdExpiresAt   DateTime
   createdAt       DateTime
+  dailyRateMinor  Int?
+  totalMinor      Int?
   allocations     BookingAllocation[]
   events          BookingEvent[]
 

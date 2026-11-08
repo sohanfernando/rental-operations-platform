@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, Max, Min, ValidateIf } from 'class-validator';
+import { RentalPriceResponse } from '../bookings/bookings.dto';
 import { BookingStatus } from '../generated/prisma/client';
 
 export class StaffDashboardQuery {
@@ -21,7 +22,7 @@ export class HandoverConflict {
   openBookingId!: number;
 }
 
-export class StaffBooking {
+export class StaffBooking extends RentalPriceResponse {
   @ApiProperty()
   id!: number;
 

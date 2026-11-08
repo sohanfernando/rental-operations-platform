@@ -9,7 +9,7 @@ import {
   ApiResponse, ApiTags, ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { SessionGuard, StaffGuard } from '../auth/session';
-import { EquipmentResponse } from '../catalog/catalog.module';
+import { EquipmentResponse } from '../catalog/catalog.dto';
 import {
   CreateEquipmentDto, CreateUnitDto, InventoryEquipmentResponse, UnitResponse,
   UpdateEquipmentDto, UpdateUnitDto,

@@ -21,7 +21,8 @@ function readOutcome(stored: { fingerprint: string; outcome: Prisma.JsonValue },
 
 export function bookingResult(outcome: Outcome) {
   if ('conflict' in outcome) throw new ConflictException(outcome.conflict);
-  return outcome.booking;
+  const booking = outcome.booking;
+  return { ...booking, dailyRateMinor: booking.dailyRateMinor ?? null, totalMinor: booking.totalMinor ?? null };
 }
 
 export async function runBookingRequest(

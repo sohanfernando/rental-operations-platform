@@ -112,7 +112,7 @@ test('auth and inventory over HTTP with MySQL', async (t) => {
       data: { email: staff.email, passwordHash: await hashPassword(staff.password), role: 'STAFF' },
     });
     staffCookie = (await login(staff)).cookie;
-    const body = { name: label, description: 'Test camera.' };
+    const body = { name: label, description: 'Test camera.', category: 'CAMERAS', dailyRateMinor: 250050 };
     assert.equal((await request(inventory, {
       method: 'POST', body, cookie: staffCookie, origin: 'https://elsewhere.example',
     })).status, 403);
@@ -121,9 +121,12 @@ test('auth and inventory over HTTP with MySQL', async (t) => {
     assert.equal(created.status, 201);
     const type = await created.json();
     const path = `${inventory}/${type.id}`;
+    for (const invalid of [{ category: 'UNKNOWN' }, { category: null }, { dailyRateMinor: 1.25 }, { dailyRateMinor: -10 }, { dailyRateMinor: 5000001 }]) {
+      assert.equal((await request(path, { method: 'PATCH', body: invalid, cookie: staffCookie })).status, 400);
+    }
 
     const typeEdited = await request(path, {
-      method: 'PATCH', body: { name: label + ' updated' }, cookie: staffCookie,
+      method: 'PATCH', body: { name: label + ' updated', dailyRateMinor: 300000 }, cookie: staffCookie,
     });
     assert.equal(typeEdited.status, 200);
     assert.equal((await typeEdited.json()).name, label + ' updated');
@@ -157,7 +160,11 @@ test('auth and inventory over HTTP with MySQL', async (t) => {
     assert.equal(catalog.status, 200);
     assert.deepEqual((await catalog.json()).find((item) => item.id === type.id), {
       id: type.id, name: label + ' updated', description: body.description, images: [],
+      category: 'CAMERAS', dailyRateMinor: 300000, availableUnits: null,
     });
+    const cleared = await request(path, { method: 'PATCH', body: { dailyRateMinor: null }, cookie: staffCookie });
+    assert.equal(cleared.status, 200);
+    assert.equal((await cleared.json()).dailyRateMinor, null);
 
     assert.equal((await request(path, { method: 'DELETE', cookie: staffCookie })).status, 409);
     assert.equal((await request(unitPath, { method: 'DELETE', cookie: staffCookie })).status, 204);

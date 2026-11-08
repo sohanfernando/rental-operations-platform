@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ApiError, api, request } from '../../shared/api';
 import { PageHeading } from '../../shared/components/page-heading';
+import { formatLkr } from '../../shared/money';
 import { CustomerArea } from '../auth/customer-area';
+import { catalogKey } from '../catalog/catalog-query';
 import { BookingStatusBadge } from './booking-status';
 import { type Booking, bookingKeys } from './bookings';
 
@@ -13,6 +15,7 @@ function BookingSummary({ booking }: { booking: Booking }) {
     <>
       <p className="info-line"><CalendarDays size={17} aria-hidden="true" /> {booking.startDate} to {booking.endDate} (end date excluded)</p>
       <div className="booking-meta"><span className="count-pill">{booking.quantity} {booking.quantity === 1 ? 'unit' : 'units'}</span><BookingStatusBadge status={booking.status} /></div>
+      <p>{booking.totalMinor === null ? 'Price not recorded' : `Rental total ${formatLkr(booking.totalMinor)}`}</p>
     </>
   );
 }
@@ -88,7 +91,12 @@ function BookingDetail({ userId, id }: { userId: number; id: string }) {
       ...request('POST'),
       headers: action === 'confirm' ? { 'Idempotency-Key': `confirm-${id}` } : undefined,
     }),
-    onSuccess: () => cache.invalidateQueries({ queryKey: bookingKeys.list(userId) }),
+    onSuccess: async () => {
+      await Promise.all([
+        cache.invalidateQueries({ queryKey: bookingKeys.list(userId) }),
+        cache.invalidateQueries({ queryKey: catalogKey }),
+      ]);
+    },
     onError: (error) => {
       if (error instanceof ApiError && error.status === 409) {
         return cache.invalidateQueries({ queryKey: bookingKeys.list(userId) });

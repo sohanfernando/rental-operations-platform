@@ -8,6 +8,7 @@ import { calendarDate, canTransition, effectiveStatus, eligibleUnits, rentalRang
 import { expireIfDue, transitionBooking } from './booking-state';
 import { type AvailabilityQuery, type BookingResponse, type CreateHoldDto } from './bookings.dto';
 import { bookingResult, runBookingRequest } from './idempotency';
+import { rentalPrice } from './rental-price';
 
 const details = {
   equipmentType: { select: { name: true } },
@@ -26,6 +27,8 @@ function bookingView(booking: BookingDetails, status: BookingStatus): BookingRes
     quantity: booking._count.allocations,
     status,
     holdExpiresAt: booking.holdExpiresAt.toISOString(),
+    dailyRateMinor: booking.dailyRateMinor,
+    totalMinor: booking.totalMinor,
   };
 }
 
@@ -42,26 +45,34 @@ export class BookingsService {
     const range = rentalRange(input, now);
     const type = await this.database.equipmentType.findUnique({
       where: { id: input.equipmentTypeId },
-      select: { id: true },
+      select: { id: true, dailyRateMinor: true },
     });
     if (!type) throw new NotFoundException('Equipment type not found.');
     const availableUnits = await this.database.equipmentUnit.count({
-      where: eligibleUnits(type.id, range, now),
+      where: { equipmentTypeId: type.id, ...eligibleUnits(range, now) },
     });
-    return { availableUnits };
+    return { availableUnits, rentalDays: range.days, ...rentalPrice(type.dailyRateMinor, range.days, input.quantity ?? 1) };
   }
 
   async createHold(customerId: number, input: CreateHoldDto, key?: string, requestId?: string) {
-    const { equipmentTypeId, startDate, endDate, quantity } = input;
+    const { equipmentTypeId, startDate, endDate, quantity, expectedTotalMinor } = input;
     const booking = await runBookingRequest(
       this.database, customerId, 'CREATE_HOLD', key,
-      { equipmentTypeId, startDate, endDate, quantity },
+      { equipmentTypeId, startDate, endDate, quantity, expectedTotalMinor },
       () => equipmentTypeId,
       async (transaction) => {
         const now = await databaseNow(transaction);
-        const range = rentalRange(input, now);
+        const { days, ...range } = rentalRange(input, now);
+        const type = await transaction.equipmentType.findUniqueOrThrow({
+          where: { id: equipmentTypeId },
+          select: { dailyRateMinor: true },
+        });
+        const price = rentalPrice(type.dailyRateMinor, days, quantity);
+        if (expectedTotalMinor !== undefined && price.totalMinor !== expectedTotalMinor) {
+          return { conflict: 'The rental price changed. Check availability and review the new total.' };
+        }
         const units = await transaction.equipmentUnit.findMany({
-          where: eligibleUnits(equipmentTypeId, range, now),
+          where: { equipmentTypeId, ...eligibleUnits(range, now) },
           orderBy: { id: 'asc' },
           take: quantity,
           select: { id: true },
@@ -73,6 +84,7 @@ export class BookingsService {
         const booking = await transaction.booking.create({
           data: {
             ...range,
+            ...price,
             equipmentTypeId,
             customerId,
             status: 'HELD',

@@ -13,7 +13,7 @@ export function AuthPage({ register = false }: { register?: boolean }) {
   const { state } = useLocation();
   const [searchParams] = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
-  const returnTo = typeof state?.returnTo === 'string' && /^\/equipment\/\d+$/.test(state.returnTo)
+  const returnTo = typeof state?.returnTo === 'string' && /^\/equipment\/\d+(?:\?[^#]*)?$/.test(state.returnTo)
     ? state.returnTo
     : '/';
   const submit = useMutation({

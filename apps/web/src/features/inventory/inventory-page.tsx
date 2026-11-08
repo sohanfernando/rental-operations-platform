@@ -4,8 +4,10 @@ import { type FormEvent, useState } from 'react';
 import { Link } from 'react-router';
 import { api, request } from '../../shared/api';
 import { PageHeading } from '../../shared/components/page-heading';
+import { Select } from '../../shared/components/select';
+import { parseLkr } from '../../shared/money';
 import { useSession } from '../auth/session';
-import { catalogKey, type Equipment } from '../catalog/catalog-query';
+import { catalogKey, equipmentCategories, type Equipment } from '../catalog/catalog-query';
 import { imageUrl } from '../catalog/equipment-art';
 
 interface Unit {
@@ -52,7 +54,7 @@ function DeleteButton({ path, label }: { path: string; label: string }) {
 
 function EquipmentForm({ equipment }: { equipment?: Equipment }) {
   const path = equipment ? `${inventoryPath}/${equipment.id}` : inventoryPath;
-  const save = useInventoryMutation((input: Pick<Equipment, 'name' | 'description'>) =>
+  const save = useInventoryMutation((input: Pick<Equipment, 'name' | 'description' | 'category' | 'dailyRateMinor'>) =>
     api<Equipment>(path, request(equipment ? 'PATCH' : 'POST', input)));
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -62,6 +64,8 @@ function EquipmentForm({ equipment }: { equipment?: Equipment }) {
     save.mutate({
       name: String(fields.get('name')),
       description: String(fields.get('description')),
+      category: fields.get('category') as Equipment['category'],
+      dailyRateMinor: parseLkr(String(fields.get('dailyRate'))),
     }, { onSuccess: () => { if (!equipment) form.reset(); } });
   }
 
@@ -74,6 +78,17 @@ function EquipmentForm({ equipment }: { equipment?: Equipment }) {
       <label>
         Description
         <textarea name="description" defaultValue={equipment?.description} maxLength={1000} rows={3} required />
+      </label>
+      <label>
+        Category
+        <Select name="category" defaultValue={equipment?.category ?? 'OTHER'}>
+          {Object.entries(equipmentCategories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+        </Select>
+      </label>
+      <label>
+        Daily rate per unit (LKR)
+        <input name="dailyRate" type="number" min="0.01" max="50000" step="0.01"
+          defaultValue={equipment?.dailyRateMinor == null ? '' : equipment.dailyRateMinor / 100} placeholder="Rate not set" />
       </label>
       {save.isError && <p className="error" role="alert">{save.error.message}</p>}
       {save.isSuccess && <p role="status">{equipment ? 'Equipment type updated.' : 'Equipment type added. Expand it to add photos and units.'}</p>}
@@ -118,10 +133,10 @@ function UnitForm({ equipment, unit }: { equipment: Equipment; unit?: Unit }) {
           </label>
           <label>
             Service status
-            <select name="status" defaultValue={unit?.status ?? 'IN_SERVICE'}>
+            <Select name="status" defaultValue={unit?.status ?? 'IN_SERVICE'}>
               <option value="IN_SERVICE">In service</option>
               <option value="OUT_OF_SERVICE">Out of service</option>
-            </select>
+            </Select>
           </label>
         </div>
         {save.isError && <p className="error" role="alert">{save.error.message}</p>}

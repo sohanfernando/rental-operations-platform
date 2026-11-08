@@ -139,6 +139,54 @@ test('reservation guarantees across separate MySQL connections', async (t) => {
     `;
   }
 
+  await t.test('date-first catalog counts honor active holds, expiry, and service status', async () => {
+    const type = await equipment('catalog-counts', ['IN_SERVICE', 'OUT_OF_SERVICE']);
+    const body = input(type);
+    const range = new URLSearchParams({ startDate: body.startDate, endDate: body.endDate });
+    async function catalogCount() {
+      const response = await expectStatus(await request(`/catalog/equipment-types?${range}`), 200);
+      return (await response.json()).find(({ id }) => id === type.id).availableUnits;
+    }
+    await expectStatus(await request(`/catalog/equipment-types?startDate=${body.startDate}`), 400);
+    await expectStatus(await request('/catalog/equipment-types?startDate=2026-02-30&endDate=2026-03-01'), 400);
+    assert.equal(await catalogCount(), 1);
+    const booking = await (await expectStatus(await hold(body), 201)).json();
+    assert.equal(await catalogCount(), 0);
+    await setDue(database, booking.id);
+    assert.equal(await catalogCount(), 1);
+  });
+
+  await t.test('pricing checks the preview under the lock and snapshots the accepted rate', async () => {
+    const type = await equipment('price', ['IN_SERVICE', 'IN_SERVICE']);
+    const body = input(type, 1, 4, 2);
+    const { equipmentTypeId, startDate, endDate, quantity } = body;
+    const updatePrice = (dailyRateMinor) => request(`/staff/equipment-types/${type.id}`, {
+      method: 'PATCH', actor: staff, body: { dailyRateMinor },
+    });
+    await expectStatus(await updatePrice(125025), 200);
+    const params = new URLSearchParams({ equipmentTypeId, startDate, endDate, quantity });
+    const quote = await (await expectStatus(await request(`/catalog/availability?${params}`), 200)).json();
+    assert.deepEqual(quote, { availableUnits: 2, rentalDays: 3, dailyRateMinor: 125025, totalMinor: 750150 });
+    await expectStatus(await updatePrice(150000), 200);
+    const stale = await expectStatus(await hold({ ...body, expectedTotalMinor: quote.totalMinor }), 409);
+    assert.match((await stale.json()).message, /price changed/);
+    assert.deepEqual(await allocations(type), []);
+
+    const key = randomUUID();
+    const agreed = { ...body, expectedTotalMinor: 900000 };
+    const booking = await (await expectStatus(await hold(agreed, first, key), 201)).json();
+    await expectStatus(await updatePrice(175000), 200);
+    assert.deepEqual(await (await expectStatus(await hold(agreed, first, key, 1), 201)).json(), booking);
+    await expectStatus(await hold({ ...agreed, expectedTotalMinor: 1050000 }, first, key), 409);
+    const confirmed = await (await expectStatus(await change(booking.id, 'confirm'), 200)).json();
+    const details = await (await expectStatus(await request(`/bookings/${booking.id}`, { actor: first }), 200)).json();
+    const staffDetails = await (await expectStatus(await request(`/staff/bookings/${booking.id}`, { actor: staff }), 200)).json();
+    for (const result of [booking, confirmed, details, staffDetails]) {
+      assert.equal(result.dailyRateMinor, 150000);
+      assert.equal(result.totalMinor, 900000);
+    }
+  });
+
   await t.test('two customers compete for the last unit and exactly one allocation commits', async () => {
     const type = await equipment('last-unit');
     const body = input(type);

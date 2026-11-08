@@ -1,8 +1,9 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, Matches, Max, Min } from 'class-validator';
+import { IsDateString, IsInt, Matches, Max, Min, ValidateIf } from 'class-validator';
 import { BookingStatus } from '../generated/prisma/client';
 import { maximumQuantity } from './booking-rules';
+import { maximumTotalMinor } from './rental-price';
 
 export class BookingIdParams {
   @Type(() => Number)
@@ -31,6 +32,14 @@ export class AvailabilityQuery extends DateRangeDto {
   @Min(1)
   @Max(2147483647)
   equipmentTypeId!: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: maximumQuantity, default: 1 })
+  @Type(() => Number)
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsInt()
+  @Min(1)
+  @Max(maximumQuantity)
+  quantity?: number;
 }
 
 export class CreateHoldDto extends DateRangeDto {
@@ -45,9 +54,24 @@ export class CreateHoldDto extends DateRangeDto {
   @Min(1)
   @Max(maximumQuantity)
   quantity!: number;
+
+  @ApiPropertyOptional({ type: Number, nullable: true, description: 'Last previewed total in LKR cents. Null means unpriced.' })
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @IsInt()
+  @Min(1)
+  @Max(maximumTotalMinor)
+  expectedTotalMinor?: number | null;
 }
 
-export class BookingResponse {
+export class RentalPriceResponse {
+  @ApiProperty({ type: Number, nullable: true, description: 'Daily rate per unit in LKR cents.' })
+  dailyRateMinor!: number | null;
+
+  @ApiProperty({ type: Number, nullable: true, description: 'Total rental price in LKR cents.' })
+  totalMinor!: number | null;
+}
+
+export class BookingResponse extends RentalPriceResponse {
   @ApiProperty()
   id!: number;
 
@@ -73,7 +97,10 @@ export class BookingResponse {
   holdExpiresAt!: string;
 }
 
-export class AvailabilityResponse {
+export class AvailabilityResponse extends RentalPriceResponse {
   @ApiProperty()
   availableUnits!: number;
+
+  @ApiProperty()
+  rentalDays!: number;
 }

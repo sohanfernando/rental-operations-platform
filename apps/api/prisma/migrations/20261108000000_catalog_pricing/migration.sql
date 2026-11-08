@@ -1,0 +1,7 @@
+ALTER TABLE `equipment_types`
+    ADD COLUMN `category` ENUM('CAMERAS', 'LIGHTING', 'SUPPORT', 'AUDIO', 'DRONES', 'ACCESSORIES', 'OTHER') NOT NULL DEFAULT 'OTHER',
+    ADD COLUMN `dailyRateMinor` INTEGER NULL;
+
+ALTER TABLE `bookings`
+    ADD COLUMN `dailyRateMinor` INTEGER NULL,
+    ADD COLUMN `totalMinor` INTEGER NULL;

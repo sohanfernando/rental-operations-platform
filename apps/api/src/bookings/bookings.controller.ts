@@ -23,7 +23,7 @@ export class AvailabilityController {
 
   @Get('availability')
   @Header('Cache-Control', 'no-store')
-  @ApiOperation({ summary: 'Preview availability for a calendar date range' })
+  @ApiOperation({ summary: 'Preview availability and LKR pricing for a calendar date range' })
   @ApiOkResponse({ type: AvailabilityResponse })
   @ApiBadRequestResponse({ description: 'Invalid equipment ID or date range.' })
   @ApiNotFoundResponse({ description: 'Equipment type not found.' })
@@ -46,7 +46,7 @@ export class BookingsController {
   @ApiCreatedResponse({ type: BookingResponse })
   @ApiBadRequestResponse({ description: 'Invalid dates, quantity, equipment ID, or idempotency key.' })
   @ApiNotFoundResponse({ description: 'Equipment type not found.' })
-  @ApiConflictResponse({ description: 'Insufficient units or key reused with different input.' })
+  @ApiConflictResponse({ description: 'Insufficient units, a changed rental price, or key reused with different input.' })
   hold(
     @Actor() actor: UserResponse, @Body() input: CreateHoldDto,
     @Req() request: SessionRequest, @Headers('idempotency-key') key?: string,

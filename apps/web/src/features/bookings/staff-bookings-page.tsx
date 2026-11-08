@@ -4,6 +4,7 @@ import { useId } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { ApiError, api, request } from '../../shared/api';
 import { PageHeading } from '../../shared/components/page-heading';
+import { formatLkr } from '../../shared/money';
 import { useSession } from '../auth/session';
 import { BookingStatusBadge } from './booking-status';
 import { type BookingStatus, bookingLabels } from './bookings';
@@ -14,6 +15,7 @@ interface StaffBooking {
   customerEmail: string;
   startDate: string;
   endDate: string;
+  totalMinor: number | null;
   status: BookingStatus;
   assetTags: string[];
   overdue: boolean;
@@ -55,6 +57,7 @@ function StaffBookingSummary({ booking }: { booking: StaffBooking }) {
       <p className="muted">{booking.customerEmail}</p>
       <p className="info-line"><CalendarDays size={16} aria-hidden="true" /> {booking.startDate} to {booking.endDate} (due date)</p>
       <p className="info-line"><PackageOpen size={16} aria-hidden="true" /> Units {booking.assetTags.join(', ')}</p>
+      {booking.totalMinor !== null && <p>Rental total {formatLkr(booking.totalMinor)}</p>}
       {booking.conflicts.length > 0 && (
         <div className="handover-warning">
           <strong>Handover blocked</strong>

@@ -38,6 +38,8 @@ function view(booking: StockBooking, now: Date, today: Date, open: ReadonlyMap<n
     customerEmail: booking.customer.email,
     startDate: calendarDate(booking.startDate),
     endDate: calendarDate(booking.endDate),
+    dailyRateMinor: booking.dailyRateMinor,
+    totalMinor: booking.totalMinor,
     status,
     assetTags: booking.allocations.map(({ unit }) => unit.assetTag),
     overdue: status === 'PICKED_UP' && booking.endDate <= today,

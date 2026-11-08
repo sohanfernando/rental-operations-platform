@@ -36,6 +36,8 @@ In a second terminal at the project root, run `npm.cmd run dev:web`. Once the AP
 
 In staff inventory, expand an equipment type and use **Product images** to upload or remove JPEG, PNG, or WebP files. Each gallery supports up to five images, at most 2 MB each. Its first photo appears in the catalog, and customers can select other photos on the detail page. The three seeded listings include AI-generated demonstration images.
 
+Use **Category** and **Daily rate per unit (LKR)** in the same inventory form to organize and price listings. Fresh demo listings include sample rates. Existing listings start under **Other** with a blank rate until staff edits them. Customers can choose dates on the catalog, filter by name, category, maximum daily rate, and availability, then open a product with the dates already filled in. The equipment page previews the total for the dates and quantity. The booking keeps its original price after the catalog rate changes. Bookings created without a rate display **Price not recorded**.
+
 Compose publishes MySQL on loopback port `13306` and Redis on loopback port `6379`. The API defaults to `3000` and the web app to `5173`. If you change the infrastructure ports, update their connection URLs in `.env`. If you change the web origin, update `WEB_ORIGIN` and restart the API. `docker compose down` stops the services and retains their named volumes.
 
 ## Architecture
@@ -101,7 +103,7 @@ The REST API is under `/api/v1`. Use [Swagger UI](http://localhost:5173/api/v1/d
 | `GET /health` | Public API liveness |
 | `POST /auth/register`, `POST /auth/login` | Create a customer account or sign in |
 | `GET /auth/me`, `POST /auth/logout` | Read or revoke the current session |
-| `GET /catalog/equipment-types`, `GET /catalog/availability` | Public catalog and date-range preview |
+| `GET /catalog/equipment-types`, `GET /catalog/availability` | Public catalog, date-range availability, and rental price preview |
 | `GET /catalog/images/:id` | Public product photo |
 | `POST /bookings/holds`, `POST /bookings/:id/confirm` | Customer hold and confirmation. Both require `Idempotency-Key`. |
 | `GET /bookings`, `GET /bookings/:id`, `POST /bookings/:id/cancel` | Read or cancel your own bookings |
@@ -115,7 +117,9 @@ The REST API is under `/api/v1`. Use [Swagger UI](http://localhost:5173/api/v1/d
 | `POST /staff/bookings/:id/pickup`, `POST /staff/bookings/:id/return` | Record all allocated units handed over or returned |
 | `POST /contact`, `GET /staff/contact` | Submit a message or read the latest messages as staff |
 
-For availability, pass `equipmentTypeId`, `startDate`, and `endDate` as query parameters. Hold creation uses those fields plus integer `quantity` in its JSON body. For retries, reuse the same key until the outcome is known. Use a fresh key for a new attempt after a definite conflict. The booking read endpoint shows the current status if an earlier result was replayed.
+Pass `startDate` and `endDate` together to get each catalog listing's available-unit count. For a quote on a particular listing, pass `equipmentTypeId`, both dates, and optional integer `quantity` (default 1) to `/catalog/availability`. Prices are integer LKR cents. The daily rate can be blank or range from LKR 0.01 to LKR 50,000.00. The total is the daily rate multiplied by the number of rental days and units.
+
+Hold creation takes the listing ID, dates, and quantity. The web app sends the previewed total as `expectedTotalMinor` and receives a conflict if the rate changed before the hold. The API reads and saves the rate and total under the same equipment lock used for stock allocation. For retries, reuse the same key and payload until the outcome is known. Use a fresh key for a new attempt after a definite conflict. The booking read endpoint shows the current status if an earlier result was replayed.
 
 The API stores a hash of each random session token and sends the token in an HttpOnly, SameSite=Lax cookie. Production mode requires an HTTPS web origin and sets Secure. The API checks the configured `Origin` on writes, including login and logout. Passwords use salted scrypt. Registration and sign-in have per-IP rate limits. The browser and direct HTTP clients must use the configured origin for writes.
 

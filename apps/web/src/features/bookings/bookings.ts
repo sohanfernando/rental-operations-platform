@@ -7,6 +7,8 @@ export interface Booking {
   startDate: string;
   endDate: string;
   quantity: number;
+  dailyRateMinor: number | null;
+  totalMinor: number | null;
   status: BookingStatus;
   holdExpiresAt: string;
 }

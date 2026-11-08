@@ -50,7 +50,7 @@ export function rentalRange(input: { startDate: string; endDate: string }, now: 
   if (startDate.getTime() - today.getTime() > maximumAdvanceDays * millisecondsPerDay) {
     throw new BadRequestException(`The start date must be within ${maximumAdvanceDays} days.`);
   }
-  return { startDate, endDate };
+  return { startDate, endDate, days };
 }
 
 export function activeBooking(now: Date): Prisma.BookingWhereInput {
@@ -63,12 +63,10 @@ export function activeBooking(now: Date): Prisma.BookingWhereInput {
 }
 
 export function eligibleUnits(
-  equipmentTypeId: number,
   range: { startDate: Date; endDate: Date },
   now: Date,
 ): Prisma.EquipmentUnitWhereInput {
   return {
-    equipmentTypeId,
     status: 'IN_SERVICE',
     allocations: {
       none: {

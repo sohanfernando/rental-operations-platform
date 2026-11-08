@@ -1,53 +1,7 @@
-import { Controller, Get, Header, Injectable, Module, NotFoundException, Param, ParseIntPipe, StreamableFile } from '@nestjs/common';
-import { ApiNotFoundResponse, ApiOkResponse, ApiProduces, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { PrismaClient, type Prisma } from '../generated/prisma/client';
-
-class EquipmentImageResponse {
-  @ApiProperty()
-  id!: number;
-}
-
-export class EquipmentResponse {
-  @ApiProperty()
-  id!: number;
-
-  @ApiProperty()
-  name!: string;
-
-  @ApiProperty()
-  description!: string;
-
-  @ApiProperty({ type: [EquipmentImageResponse] })
-  images!: EquipmentImageResponse[];
-}
-
-export const equipmentFields = {
-  id: true,
-  name: true,
-  description: true,
-  images: { select: { id: true }, orderBy: { id: 'asc' } },
-} satisfies Prisma.EquipmentTypeSelect;
-
-@Injectable()
-class CatalogService {
-  constructor(private readonly database: PrismaClient) {}
-
-  list(): Promise<EquipmentResponse[]> {
-    return this.database.equipmentType.findMany({
-      select: equipmentFields,
-      orderBy: [{ name: 'asc' }, { id: 'asc' }],
-    });
-  }
-
-  async image(id: number) {
-    const image = await this.database.equipmentImage.findUnique({
-      where: { id },
-      select: { data: true, contentType: true },
-    });
-    if (!image) throw new NotFoundException('Equipment image not found.');
-    return image;
-  }
-}
+import { Controller, Get, Header, Module, NotFoundException, Param, ParseIntPipe, Query, StreamableFile } from '@nestjs/common';
+import { ApiBadRequestResponse, ApiNotFoundResponse, ApiOkResponse, ApiProduces, ApiTags } from '@nestjs/swagger';
+import { CatalogEquipmentResponse, CatalogQuery } from './catalog.dto';
+import { CatalogService } from './catalog.service';
 
 @ApiTags('Catalog')
 @Controller('catalog')
@@ -55,9 +9,11 @@ class CatalogController {
   constructor(private readonly catalog: CatalogService) {}
 
   @Get('equipment-types')
-  @ApiOkResponse({ type: [EquipmentResponse] })
-  list() {
-    return this.catalog.list();
+  @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({ type: [CatalogEquipmentResponse] })
+  @ApiBadRequestResponse({ description: 'Invalid rental date range.' })
+  list(@Query() input: CatalogQuery) {
+    return this.catalog.list(input);
   }
 
   @Get('images/:id')

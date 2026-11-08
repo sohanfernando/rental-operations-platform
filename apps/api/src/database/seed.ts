@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { hashPassword } from '../auth/password';
 import { loadEnvironment } from '../config';
 import { createDatabase } from './database';
+import { EquipmentCategory } from '../generated/prisma/client';
 
 const staffSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
@@ -15,18 +16,24 @@ const equipment = [
   {
     name: 'Sony A7 IV',
     description: 'Full-frame mirrorless camera for hybrid photo and video shoots.',
+    category: EquipmentCategory.CAMERAS,
+    dailyRateMinor: 850_000,
     assetTags: ['CAM-001'],
     photo: 'sony-a7-iv.jpg',
   },
   {
     name: 'Manfrotto Befree',
     description: 'Compact travel tripod with a ball head and quick-release plate.',
+    category: EquipmentCategory.SUPPORT,
+    dailyRateMinor: 150_000,
     assetTags: ['TRI-001', 'TRI-002'],
     photo: 'manfrotto-befree.jpg',
   },
   {
     name: 'Aputure Amaran 200x',
     description: 'Bi-color LED fixture for interviews and small studio setups.',
+    category: EquipmentCategory.LIGHTING,
+    dailyRateMinor: 350_000,
     assetTags: ['LGT-001'],
     photo: 'amaran-200x.jpg',
   },
@@ -50,9 +57,9 @@ async function seed() {
       email: staff.data.email,
       passwordHash: await hashPassword(staff.data.password),
     };
-    const catalog = await Promise.all(equipment.map(async (item) => ({
+    const catalog = await Promise.all(equipment.map(async ({ photo, ...item }) => ({
       ...item,
-      image: new Uint8Array(await readFile(resolve(__dirname, '../../prisma/demo-images', item.photo))),
+      image: new Uint8Array(await readFile(resolve(__dirname, '../../prisma/demo-images', photo))),
     })));
     await database.$transaction(async (transaction) => {
       if (staffCredentials) {
@@ -67,10 +74,10 @@ async function seed() {
         }
       }
 
-      for (const { name, description, assetTags, image } of catalog) {
+      for (const { assetTags, image, ...listing } of catalog) {
         const type = await transaction.equipmentType.upsert({
-          where: { name },
-          create: { name, description },
+          where: { name: listing.name },
+          create: listing,
           update: {},
         });
         if (!await transaction.equipmentImage.count({ where: { equipmentTypeId: type.id } })) {

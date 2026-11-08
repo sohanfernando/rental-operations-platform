@@ -26,6 +26,8 @@ const test = base.extend({
         data: {
           name: equipmentName,
           description: 'Isolated equipment for the browser smoke test.',
+          category: 'CAMERAS',
+          dailyRateMinor: 125025,
           units: { create: { assetTag } },
         },
       });
@@ -99,14 +101,24 @@ test('customer registers, checks availability, places a hold, and confirms', asy
   await expect(page).toHaveURL('/');
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Catalog', exact: true }).click();
 
-  await page.getByRole('link', { name: `Check availability for ${rental.equipmentName}`, exact: true }).click();
   const dates = await rental.rentalDates(1);
   await page.getByLabel('Start date').fill(dates.startDate);
   await page.getByLabel('End date').fill(dates.endDate);
-  await page.getByRole('button', { name: 'Check availability', exact: true }).click();
+  await page.getByLabel('Search equipment').fill(rental.equipmentName);
+  await page.getByRole('combobox', { name: 'Category', exact: true }).selectOption('CAMERAS');
+  await page.getByLabel('Max daily rate (LKR)').fill('1000');
+  await page.getByRole('button', { name: 'Apply filters' }).click();
+  await expect(page.getByText(/No equipment matches these filters/)).toBeVisible();
+  await page.getByLabel('Max daily rate (LKR)').fill('1500');
+  await page.getByRole('button', { name: 'Apply filters' }).click();
+  await page.getByRole('link', { name: `Check availability for ${rental.equipmentName}`, exact: true }).click();
+  await expect(page.getByLabel('Start date')).toHaveValue(dates.startDate);
+  await expect(page.getByLabel('End date')).toHaveValue(dates.endDate);
   await expect(page.getByText('1 unit available for these dates.', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Estimated total LKR\s*2,500\.50/)).toBeVisible();
   await page.getByRole('button', { name: 'Place hold', exact: true }).click();
   await expect(page.getByText(/Hold expires in/)).toBeVisible();
+  await expect(page.getByText(/Rental total LKR\s*2,500\.50/)).toBeVisible();
   expect(await page.locator('html').evaluate((element) => element.scrollWidth)).toBe(390);
 
   await page.getByRole('button', { name: 'Confirm reservation', exact: true }).click();
@@ -156,6 +168,9 @@ test('staff records pickup and return and sees both events', async ({ page, requ
   await page.getByRole('link', { name: 'Inventory', exact: true }).click();
   const product = page.locator('details').filter({ hasText: rental.equipmentName });
   await product.locator('summary').click();
+  await product.getByLabel('Daily rate per unit (LKR)').fill('2000');
+  await product.getByRole('button', { name: 'Save equipment type' }).click();
+  await expect(product.getByText('Equipment type updated.')).toBeVisible();
   await product.getByLabel('Choose product images').setInputFiles([
     resolve(__dirname, '../../apps/api/prisma/demo-images/sony-a7-iv.jpg'),
     resolve(__dirname, '../../apps/api/prisma/demo-images/manfrotto-befree.jpg'),
@@ -163,6 +178,7 @@ test('staff records pickup and return and sees both events', async ({ page, requ
   await product.getByRole('button', { name: 'Upload images' }).click();
   await expect(product.getByText('Product images added.')).toBeVisible();
   await page.goto(`/equipment/${rental.equipmentTypeId}`);
+  await expect(page.getByText(/LKR\s*2,000\.00 per unit/)).toBeVisible();
   await page.getByRole('button', { name: 'Show photo 2' }).click();
   await expect.poll(() => page.getByRole('img', { name: `${rental.equipmentName} photo 2` }).evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
 });
